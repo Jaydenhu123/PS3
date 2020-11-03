@@ -1,0 +1,145 @@
+---
+title: "Trump expected to win 54% popular vote in 2020 US Election!"
+subtitle: 'An evidence found from survey data using GLMM model with 95% CI from 52% to 56%'
+author: 'Yangming Hu'
+date: "2020-11-02"
+output:
+  bookdown::pdf_document2:
+toc: FALSE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F,eval=T, warning=F,message=F,cache = T)
+```
+
+
+# Model
+
+The study uses a generalized linear mixed logistic model with random effects across states as below:
+
+
+$$Y_{ij}  \sim  \text{Bernoulli}(\lambda_{ij})$$
+
+$$log(\lambda_{ij}) = \mu + X \beta + state_i + Z_{ij}$$
+
+Let we assume that the covariance matrix $\Sigma_{state}$ is among voters for state level and $\Sigma_{Z}$ is the covariance matrix among individuals within state level.
+
+$$state_i \sim N(0, \sigma_{state}^2 \Sigma_{state})$$
+$$Z_{ij} \sim N(0, \sigma_{Z}^2\Sigma_{Z})$$
+
+And 
+
+1. $Y_{ij}$ is  whether vote for Trump or not for ith state, j-th voter. 
+
+2. $\lambda_{ij}$ is the chance of vote for Trump.
+
+3. $\mu$ is the intercept, X are covariates,
+
+4. $\beta$ are  coefficients. 
+
+5. State is the random effect for state level.
+
+6. Z is random effect for invidual level. 
+
+
+As binary outcome is appropriate for logistic model, and random effect across states require random effect model, so the GLMM model is appropriate instead of linear regression model. Also, model diagnostics are used to verify the model is valid.
+
+
+
+# Results
+
+
+```{r,eval=F}
+library(haven)
+library(tidyverse)
+raw_data <- read_dta("inputs/data/ns20200625/ns20200625.dta")
+raw_data <- labelled::to_factor(raw_data)
+# Just keep some variables
+reduced_data <-   raw_data %>%  select(interest,
+         vote_2020,
+         gender,
+         race_ethnicity,
+         state,
+         age)  %>%  mutate( 
+      
+      Trump = as.integer(vote_2020 == "Donald Trump"),
+      gender = tolower(gender),
+      race = ifelse(race_ethnicity== "White","White",ifelse(race_ethnicity == "Black, or African  American","Black","Other"))) %>% select(Trump, gender, age, race, state) %>% na.omit() 
+
+
+raw_data2 <- read_dta("inputs/data/usa_00002.dta")
+
+raw_data2 <- labelled::to_factor(raw_data2)
+
+a1 <- match(raw_data2$stateicp,c(tolower(state.name),"district of columbia"))
+
+reduced_data2 %>% 
+  
+  rename('gender' = 'sex') %>%
+  
+  mutate(  race = ifelse(race == "white","White",   ifelse(race == "black/african american/negro","Black","Other")),
+          
+           state = c(state.abb, "DC")[a1],
+           
+           age = as.numeric(ifelse(age == "90 (90+ in 1980 and 1990)", "90",age))) %>% 
+  filter(  18 <= age & age <= 93 ) %>%  select(gender, age, race, state) %>% na.omit()
+
+```
+
+```{r,eval=F}
+library(glmmTMB)
+
+fit = glmmTMB(Trump ~ age + gender + race + (1 | state), data = reduced_data,
+                      family = binomial(link = "logit"))
+prob <- predict(fit, reduced_data2,type="response")
+
+p <- mean(round(prob,1))
+s <- sqrt(p*(1-p)/5000)
+c(p-1.96*s,p+1.96*s)
+```
+
+
+Table 1 Forecasting Trump's winning probability with 95% confidence interval 
+
+|Variable                  |Forecast    |
+|:----------------------|:-------------|
+|Probability  |0.54         |
+|S.E.        |0.01         |
+|95%  CI |(0.52,0.56) |
+
+Using the model, the main results are shown in the table 1 which is the forecasting Trump's winning probability with 95% confidence interval, so the results show that  Trump expected to win about 54% vote in 2020 US Election, that we are 95% confident that this predicted proportion of vote fall into the range from (52%, 56%). As 52% is still higher than 50%, so this study forecasts that Trump would win the 2020 US Election.
+
+# Discussion
+
+This sutdy mainly uses a generalized linear mixed logistic model with random effects across states to forecast the US 2020 election, it was found that Trump expected to win about 54% vote in 2020 US Election, that we are 95% confident that this predicted proportion of vote fall into the range from (52%, 56%). And because the 52% is still higher than 50%, so this study forecasts that Trump would win the 2020 US Election. However, besides the findings, there are still some weaknesses in this study. For examples, the non-response biases in the survey data, the data cleaning processes and etc, in future work, these issues could be invistigated to improve the performance of the model and fndings in this study.
+
+
+# Appendix 
+
+The r codes and soure files are hold in the Github Repo: https://github.com/Jaydenhu123/PS3.
+
+# References
+
+
+1.	Hadley Wickham and Evan Miller (2020). haven: Import and Export 'SPSS','Stata' and 'SAS' Files. R package version 2.3.1.  https://CRAN.R-project.org/package=haven
+
+2.	 Mollie E. Brooks, Kasper Kristensen, Koen J. van Benthem, Arni Magnusson,  Casper W. Berg, Anders Nielsen, Hans J. Skaug, Martin Maechler and Benjamin M. Bolker (2017). glmmTMB Balances Speed and Flexibility Among Packages for
+  Zero-inflated Generalized Linear Mixed Modeling. The R Journal, 9(2), 378-400.
+  
+3.	Patrick Brown (2020). Pmisc: Various Utilities for knitr and inla. R package version 0.3.2/r2380.  https://R-Forge.R-project.org/projects/diseasemapping/
+
+4.	R Core Team (2019). R: A language and environment for statistical computing. R Foundation for Statistical Computing, Vienna, Austria. URL https://www.R-project.org/.
+
+5.	Steven Ruggles, Sarah Flood, Ronald Goeken, Josiah Grover, Erin Meyer, Jose Pacas and Matthew Sobek. IPUMS USA: Version 10.0 [dataset]. Minneapolis, MN: IPUMS, 2020.https://doi.org/10.18128/D010.V10.0
+
+6.	Tausanovitch, Chris and Lynn Vavreck. 2020. Democracy Fund + UCLA Nationscape, October 10-17, 2019 (version 20200814). Retrieved from  https://www.voterstudygroup.org/downloads?key=196fe68b-363c-46f1-880b-75b48cd5dc4d
+
+7.	Wickham,Hadley, Mara Averick, Jennifer Bryan, Winston Chang, Lucy D'Agostino McGowan, Romain François, Garrett Grolemund, et al. 2019. "Welcome to the tidyverse."  Journal of Open  Source Software, 4(43), 1686, https://doi.org/10.21105/joss.01686
+
+8.	Yihui Xie (2020). knitr: A General-Purpose Package for Dynamic Report Generation in R. R package version 1.27.
+
+
+
+
+
+
